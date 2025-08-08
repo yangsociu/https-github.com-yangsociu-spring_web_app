@@ -1,4 +1,4 @@
-import type { LoginRequest, RegisterRequest, AuthResponse, User, Game, GameApprovalRequest, ApprovalRequest } from "./types";
+import type { LoginRequest, RegisterRequest, AuthResponse, User, Game, GameApprovalRequest, ApprovalRequest, Review, ReviewRequest, LeaderboardEntry, PointTransaction } from "./types";
 
 const API_BASE_URL = "http://localhost:8080/api/v1";
 
@@ -90,13 +90,11 @@ export const getAdminAllGames = (): Promise<Game[]> => {
   return fetchWrapper(`${API_BASE_URL}/admin/games/all`);
 };
 
-
 // Games
 export const getPublicGames = (): Promise<Game[]> => {
   return fetchWrapper(`${API_BASE_URL}/games/public`);
 };
 
-// New function to get a single game
 export const getGameById = (id: number): Promise<Game> => {
   return fetchWrapper(`${API_BASE_URL}/games/${id}`);
 }
@@ -110,4 +108,32 @@ export const createGame = (data: FormData): Promise<Game> => {
 
 export const getMyGames = (): Promise<Game[]> => {
   return fetchWrapper(`${API_BASE_URL}/games/my-games`);
+};
+
+// Reviews
+export const getGameReviews = (gameId: number): Promise<Review[]> => {
+  return fetchWrapper(`${API_BASE_URL}/reviews/${gameId}`);
+};
+
+export const createReview = (data: ReviewRequest): Promise<Review> => {
+  return fetchWrapper(`${API_BASE_URL}/reviews`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+};
+
+// Points
+export const trackDownload = (playerId: number, gameId: number): Promise<string> => {
+  return fetchWrapper(`${API_BASE_URL}/points/track-download?playerId=${playerId}&gameId=${gameId}`, {
+    method: "POST",
+  });
+};
+
+export const getPlayerPoints = (playerId: number): Promise<PointTransaction[]> => {
+  return fetchWrapper(`${API_BASE_URL}/points/player/${playerId}`);
+};
+
+// Leaderboard
+export const getLeaderboard = (): Promise<LeaderboardEntry[]> => {
+  return fetchWrapper(`${API_BASE_URL}/leaderboard`);
 };

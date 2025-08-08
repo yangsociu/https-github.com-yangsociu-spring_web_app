@@ -6,20 +6,26 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
-import { getGameById } from "@/lib/api";
+import { getGameById, trackDownload } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import type { Game } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Download, HardDrive, Info } from 'lucide-react';
+import { GameReviews } from "@/components/game-reviews";
+import { Download, HardDrive, Info, Star } from 'lucide-react';
 import { motion } from "framer-motion";
+import { useToast } from "@/hooks/use-toast";
 
 export default function GameDetailPage() {
   const params = useParams();
+  const { user } = useAuth();
+  const { toast } = useToast();
   const [game, setGame] = useState<Game | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     const gameId = Number(params.id);
@@ -42,6 +48,38 @@ export default function GameDetailPage() {
 
     fetchGame();
   }, [params.id]);
+
+  const handleDownload = async () => {
+    if (!game) return;
+
+    setDownloading(true);
+    try {
+      // Track download for points if user is a player
+      if (user && user.role === "PLAYER" && game.supportPoints) {
+        try {
+          await trackDownload(user.id, game.id);
+          toast({
+            title: "Points Earned!",
+            description: "You earned 10 points for downloading this asset!",
+          });
+        } catch (error) {
+          console.error("Failed to track download:", error);
+          // Don't prevent download if point tracking fails
+        }
+      }
+
+      // Open download link
+      window.open(game.apkFileUrl, '_blank');
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to process download",
+        variant: "destructive",
+      });
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -82,7 +120,7 @@ export default function GameDetailPage() {
     >
       <div className="relative h-[300px] md:h-[450px] w-full rounded-xl overflow-hidden">
         <Image
-          src={imageUrl}
+          src={imageUrl || "/placeholder.svg"}
           alt={`Banner for ${game.name}`}
           fill
           className="object-cover"
@@ -94,7 +132,7 @@ export default function GameDetailPage() {
       <div className="container mx-auto max-w-6xl px-4 pb-12 -mt-24 relative z-10">
         <h1 className="text-3xl font-bold text-gray-800 mb-6 text-center">{game.name}</h1>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 space-y-6">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -102,7 +140,7 @@ export default function GameDetailPage() {
             >
               <Card className="bg-white/90 backdrop-blur-sm border-gray-200 shadow-lg">
                 <CardHeader>
-                  <CardTitle className="text-2xl font-bold text-gray-800">Game Details</CardTitle>
+                  <CardTitle className="text-2xl font-bold text-gray-800">Asset Details</CardTitle>
                   <p className="text-gray-600">Developed by: User {game.developerId}</p>
                 </CardHeader>
                 <CardContent>
@@ -110,7 +148,17 @@ export default function GameDetailPage() {
                 </CardContent>
               </Card>
             </motion.div>
+
+            {/* Reviews Section */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.6 }}
+            >
+              <GameReviews gameId={game.id} />
+            </motion.div>
           </div>
+          
           <div className="lg:col-span-1 space-y-6">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -119,30 +167,60 @@ export default function GameDetailPage() {
             >
               <Card className="bg-white/90 backdrop-blur-sm border-gray-200 shadow-lg">
                 <CardHeader>
-                  <CardTitle className="flex items-center text-xl text-gray-800"><HardDrive className="mr-3 h-5 w-5 text-blue-600" />System Requirements</CardTitle>
+                  <CardTitle className="flex items-center text-xl text-gray-800">
+                    <HardDrive className="mr-3 h-5 w-5 text-blue-600" />
+                    System Requirements
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-gray-600 whitespace-pre-wrap">{game.requirements || "No requirements specified."}</p>
                 </CardContent>
               </Card>
+              
               <Card className="bg-white/90 backdrop-blur-sm border-gray-200 shadow-lg mt-6">
                 <CardHeader>
-                  <CardTitle className="flex items-center text-xl text-gray-800"><Info className="mr-3 h-5 w-5 text-blue-600" />Features</CardTitle>
+                  <CardTitle className="flex items-center text-xl text-gray-800">
+                    <Info className="mr-3 h-5 w-5 text-blue-600" />
+                    Features
+                  </CardTitle>
                 </CardHeader>
-                <CardContent className="flex flex-wrap gap-2">
-                  {game.supportLeaderboard ? <Badge variant="secondary">Leaderboard</Badge> : <Badge variant="outline">No Leaderboard</Badge>}
-                  {game.supportPoints ? <Badge variant="secondary">Points System</Badge> : <Badge variant="outline">No Points System</Badge>}
+                <CardContent className="space-y-3">
+                  <div className="flex flex-wrap gap-2">
+                    {game.supportLeaderboard ? (
+                      <Badge variant="secondary" className="bg-green-100 text-green-700">
+                        <Star className="h-3 w-3 mr-1" />
+                        Leaderboard Support
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline">No Leaderboard</Badge>
+                    )}
+                    {game.supportPoints ? (
+                      <Badge variant="secondary" className="bg-blue-100 text-blue-700">
+                        <Star className="h-3 w-3 mr-1" />
+                        Points System
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline">No Points System</Badge>
+                    )}
+                  </div>
+                  {game.supportPoints && user && user.role === "PLAYER" && (
+                    <div className="bg-blue-50 p-3 rounded-lg">
+                      <p className="text-sm text-blue-700 font-medium">
+                        🎉 Earn 10 points when you download this asset!
+                      </p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
+              
               <Button 
                 size="lg" 
                 className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-2"
-                asChild
+                onClick={handleDownload}
+                disabled={downloading}
               >
-                <a href={game.apkFileUrl} target="_blank" rel="noopener noreferrer">
-                  <Download className="h-5 w-5" />
-                  <span>Download Now</span>
-                </a>
+                <Download className="h-5 w-5" />
+                <span>{downloading ? "Processing..." : "Download Now"}</span>
               </Button>
             </motion.div>
           </div>

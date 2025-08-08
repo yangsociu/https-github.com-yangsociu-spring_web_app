@@ -16,6 +16,7 @@ export interface AuthResponse {
 token: string;
 role: string;
 email: string;
+id: number;
 }
 
 export interface User {
@@ -26,6 +27,7 @@ status: "PENDING" | "APPROVED" | "REJECTED";
 fullName?: string;
 portfolioUrl?: string;
 experienceYears?: number;
+totalPoints?: number;
 }
 
 export interface Game {
@@ -50,4 +52,38 @@ export interface ApprovalRequest {
 export interface GameApprovalRequest {
   gameId: number;
   status: 'APPROVED' | 'REJECTED';
+}
+
+export interface Review {
+  id: number;
+  gameId: number;
+  playerId: number;
+  playerName: string;
+  rating: number;
+  comment: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  createdAt: string;
+}
+
+export interface ReviewRequest {
+  gameId: number;
+  rating: number;
+  comment: string;
+}
+
+export interface LeaderboardEntry {
+  id: number;
+  fullName: string;
+  email: string;
+  totalPoints: number;
+  rank: number;
+}
+
+export interface PointTransaction {
+  id: number;
+  playerId: number;
+  gameId: number;
+  points: number;
+  actionType: "DOWNLOAD_GAME" | "WRITE_REVIEW";
+  createdAt: string;
 }

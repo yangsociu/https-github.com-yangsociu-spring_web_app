@@ -26,7 +26,13 @@ export function Header() {
           <Gamepad2 className="h-6 w-6 text-blue-600" />
           <span className="font-bold text-lg text-gray-800">GameAssetHub</span>
         </Link>
-        <div className="flex flex-1 items-center" />
+        <div className="flex flex-1 items-center justify-center">
+          <nav className="flex items-center space-x-6">
+            <Button variant="ghost" className="text-gray-600 hover:text-blue-600 hover:bg-blue-50" asChild>
+              <Link href="/leaderboard">Leaderboard</Link>
+            </Button>
+          </nav>
+        </div>
         <div className="flex items-center space-x-2">
           {user ? (
             <>
