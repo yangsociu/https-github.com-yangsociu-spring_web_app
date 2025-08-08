@@ -1,6 +1,3 @@
-// Component hiển thị chi tiết một trò chơi dựa trên ID, lấy dữ liệu từ API, 
-// hiển thị hình ảnh xem trước, thông tin mô tả, yêu cầu hệ thống, tính năng và liên kết tải xuống, với hiệu ứng chuyển động và xử lý trạng thái tải/lỗi.
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -54,23 +51,39 @@ export default function GameDetailPage() {
 
     setDownloading(true);
     try {
-      // Track download for points if user is a player
+      // Check if user is logged in and is a player with points support
       if (user && user.role === "PLAYER" && game.supportPoints) {
+        console.log('Tracking download for user:', user.id, 'game:', game.id);
         try {
-          await trackDownload(user.id, game.id);
+          const downloadUrl = await trackDownload(user.id, game.id);
           toast({
             title: "Points Earned!",
             description: "You earned 10 points for downloading this asset!",
           });
+          // Open the download URL returned from the backend
+          window.open(downloadUrl, '_blank');
         } catch (error) {
           console.error("Failed to track download:", error);
-          // Don't prevent download if point tracking fails
+          toast({
+            title: "Points Error",
+            description: "Failed to award points, but download will continue",
+            variant: "destructive",
+          });
+          // Fallback to direct download
+          window.open(game.apkFileUrl, '_blank');
+        }
+      } else {
+        // Direct download without point tracking
+        window.open(game.apkFileUrl, '_blank');
+        if (!user) {
+          toast({
+            title: "Download Started",
+            description: "Please login to earn points for downloads!",
+          });
         }
       }
-
-      // Open download link
-      window.open(game.apkFileUrl, '_blank');
     } catch (error) {
+      console.error('Download error:', error);
       toast({
         title: "Error",
         description: "Failed to process download",
@@ -207,6 +220,13 @@ export default function GameDetailPage() {
                     <div className="bg-blue-50 p-3 rounded-lg">
                       <p className="text-sm text-blue-700 font-medium">
                         🎉 Earn 10 points when you download this asset!
+                      </p>
+                    </div>
+                  )}
+                  {game.supportPoints && !user && (
+                    <div className="bg-yellow-50 p-3 rounded-lg">
+                      <p className="text-sm text-yellow-700 font-medium">
+                        💡 Login as a Player to earn points for downloads!
                       </p>
                     </div>
                   )}

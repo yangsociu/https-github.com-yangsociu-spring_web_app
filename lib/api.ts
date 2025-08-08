@@ -122,11 +122,42 @@ export const createReview = (data: ReviewRequest): Promise<Review> => {
   });
 };
 
-// Points
-export const trackDownload = (playerId: number, gameId: number): Promise<string> => {
-  return fetchWrapper(`${API_BASE_URL}/points/track-download?playerId=${playerId}&gameId=${gameId}`, {
-    method: "POST",
-  });
+// Points - Updated to handle redirect properly
+export const trackDownload = async (playerId: number, gameId: number): Promise<string> => {
+  const token = await getAuthToken();
+  if (!token) {
+    throw new Error('Authentication required');
+  }
+
+  const url = `${API_BASE_URL}/points/track-download?playerId=${playerId}&gameId=${gameId}`;
+  
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+      redirect: 'manual' // Don't follow redirects automatically
+    });
+
+    if (response.status === 0 || (response.status >= 300 && response.status < 400)) {
+      // This is a redirect response, get the location header
+      const location = response.headers.get('location');
+      if (location) {
+        return location; // Return the download URL
+      }
+    }
+
+    if (!response.ok) {
+      throw new Error(`Failed to track download: ${response.status}`);
+    }
+
+    // If we get here, something went wrong
+    throw new Error('Unexpected response format');
+  } catch (error) {
+    console.error('Track download error:', error);
+    throw error;
+  }
 };
 
 export const getPlayerPoints = (playerId: number): Promise<PointTransaction[]> => {
