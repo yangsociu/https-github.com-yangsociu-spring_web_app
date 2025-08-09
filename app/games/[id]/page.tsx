@@ -1,153 +1,258 @@
-// Component hiển thị chi tiết một trò chơi dựa trên ID, lấy dữ liệu từ API, 
-// hiển thị hình ảnh xem trước, thông tin mô tả, yêu cầu hệ thống, tính năng và liên kết tải xuống, với hiệu ứng chuyển động và xử lý trạng thái tải/lỗi.
+"use client"
 
-"use client";
-
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
-import Image from "next/image";
-import { getGameById } from "@/lib/api";
-import type { Game } from "@/lib/types";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Download, HardDrive, Info } from 'lucide-react';
-import { motion } from "framer-motion";
+import { useState, useEffect } from "react"
+import { useParams } from "next/navigation"
+import Image from "next/image"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Download, Users, Trophy } from "lucide-react"
+import { getGameById, trackDownloadAndGetUrl, getCurrentUser } from "@/lib/api"
+import { GameReviews } from "@/components/game-reviews"
+import type { Game, User } from "@/lib/types"
+import { useToast } from "@/hooks/use-toast"
 
 export default function GameDetailPage() {
-  const params = useParams();
-  const [game, setGame] = useState<Game | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const params = useParams()
+  const gameId = Number.parseInt(params.id as string)
+  const [game, setGame] = useState<Game | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [downloading, setDownloading] = useState(false)
+  const [currentUser, setCurrentUser] = useState<User | null>(null)
+  const { toast } = useToast()
 
   useEffect(() => {
-    const gameId = Number(params.id);
-    if (isNaN(gameId)) {
-      setError("Invalid game ID.");
-      setLoading(false);
-      return;
+    if (gameId) {
+      loadGame()
+      loadCurrentUser()
+    }
+  }, [gameId])
+
+  const loadCurrentUser = async () => {
+    try {
+      const user = await getCurrentUser()
+      setCurrentUser(user)
+    } catch (error) {
+      console.error("Failed to load current user:", error)
+    }
+  }
+
+  const loadGame = async () => {
+    try {
+      setLoading(true)
+      const gameData = await getGameById(gameId)
+      setGame(gameData)
+    } catch (error) {
+      console.error("Failed to load game:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load game details",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDownload = async () => {
+    if (!currentUser) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to download games",
+        variant: "destructive",
+      })
+      return
     }
 
-    const fetchGame = async () => {
-      try {
-        const fetchedGame = await getGameById(gameId);
-        setGame(fetchedGame);
-      } catch (err) {
-        setError("Failed to load game details. It might not exist.");
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (currentUser.role !== "PLAYER") {
+      toast({
+        title: "Access Denied",
+        description: "Only players can download games",
+        variant: "destructive",
+      })
+      return
+    }
 
-    fetchGame();
-  }, [params.id]);
+    try {
+      setDownloading(true)
+
+      // Track download and get APK URL
+      const apkUrl = await trackDownloadAndGetUrl(currentUser.id, gameId)
+
+      // Show success message
+      toast({
+        title: "Download Started",
+        description: game?.supportPoints ? "Download started! You earned 10 points!" : "Download started!",
+      })
+
+      // Trigger download
+      window.open(apkUrl, "_blank")
+    } catch (error: any) {
+      console.error("Download failed:", error)
+      toast({
+        title: "Download Failed",
+        description: error.message || "Failed to start download",
+        variant: "destructive",
+      })
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-8 max-w-6xl bg-gradient-to-b from-blue-50 to-white">
-        <Skeleton className="h-[450px] w-full rounded-xl mb-8 bg-gray-200" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-4">
-            <Skeleton className="h-96 w-full bg-gray-200" />
-          </div>
-          <div className="space-y-4">
-            <Skeleton className="h-64 w-full bg-gray-200" />
-          </div>
-        </div>
-        <div className="text-center">
-          <span className="text-blue-600 font-semibold">Loading...</span>
-        </div>
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center">Loading game details...</div>
       </div>
-    );
+    )
   }
 
-  if (error || !game) {
+  if (!game) {
     return (
-      <div className="container mx-auto px-4 py-8 text-center bg-gradient-to-b from-blue-50 to-white">
-        <h1 className="text-3xl font-bold text-gray-800 mb-6">An Error Occurred</h1>
-        <p className="text-gray-600">{error}</p>
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center">Game not found</div>
       </div>
-    );
+    )
   }
-
-  const imageUrl = game.previewImageUrl || "/stylized-game-scene.png";
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5 }}
-      className="bg-gradient-to-b from-blue-50 to-white p-6"
-    >
-      <div className="relative h-[300px] md:h-[450px] w-full rounded-xl overflow-hidden">
-        <Image
-          src={imageUrl}
-          alt={`Banner for ${game.name}`}
-          fill
-          className="object-cover"
-          priority
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-gray-950 to-transparent" />
-      </div>
+    <div className="container mx-auto px-4 py-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Game Details */}
+        <div className="lg:col-span-2">
+          <Card>
+            <CardHeader>
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle className="text-2xl mb-2">{game.name}</CardTitle>
+                  <div className="flex gap-2 mb-4">
+                    <Badge variant="secondary">{game.status}</Badge>
+                    {game.supportPoints && (
+                      <Badge variant="outline" className="flex items-center gap-1">
+                        <Trophy className="w-3 h-3" />
+                        Points Enabled
+                      </Badge>
+                    )}
+                    {game.supportLeaderboard && (
+                      <Badge variant="outline" className="flex items-center gap-1">
+                        <Users className="w-3 h-3" />
+                        Leaderboard
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="relative aspect-video mb-6 rounded-lg overflow-hidden">
+                <Image
+                  src={game.previewImageUrl || "/stylized-game-scene.png"}
+                  alt={game.name}
+                  fill
+                  className="object-cover"
+                />
+              </div>
 
-      <div className="container mx-auto max-w-6xl px-4 pb-12 -mt-24 relative z-10">
-        <h1 className="text-3xl font-bold text-gray-800 mb-6 text-center">{game.name}</h1>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-            >
-              <Card className="bg-white/90 backdrop-blur-sm border-gray-200 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="text-2xl font-bold text-gray-800">Game Details</CardTitle>
-                  <p className="text-gray-600">Developed by: User {game.developerId}</p>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">{game.description || "No description provided."}</p>
-                </CardContent>
-              </Card>
-            </motion.div>
-          </div>
-          <div className="lg:col-span-1 space-y-6">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.4 }}
-            >
-              <Card className="bg-white/90 backdrop-blur-sm border-gray-200 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="flex items-center text-xl text-gray-800"><HardDrive className="mr-3 h-5 w-5 text-blue-600" />System Requirements</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-gray-600 whitespace-pre-wrap">{game.requirements || "No requirements specified."}</p>
-                </CardContent>
-              </Card>
-              <Card className="bg-white/90 backdrop-blur-sm border-gray-200 shadow-lg mt-6">
-                <CardHeader>
-                  <CardTitle className="flex items-center text-xl text-gray-800"><Info className="mr-3 h-5 w-5 text-blue-600" />Features</CardTitle>
-                </CardHeader>
-                <CardContent className="flex flex-wrap gap-2">
-                  {game.supportLeaderboard ? <Badge variant="secondary">Leaderboard</Badge> : <Badge variant="outline">No Leaderboard</Badge>}
-                  {game.supportPoints ? <Badge variant="secondary">Points System</Badge> : <Badge variant="outline">No Points System</Badge>}
-                </CardContent>
-              </Card>
-              <Button 
-                size="lg" 
-                className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-2"
-                asChild
-              >
-                <a href={game.apkFileUrl} target="_blank" rel="noopener noreferrer">
-                  <Download className="h-5 w-5" />
-                  <span>Download Now</span>
-                </a>
-              </Button>
-            </motion.div>
-          </div>
+              <div className="space-y-4">
+                <div>
+                  <h3 className="font-semibold mb-2">Description</h3>
+                  <p className="text-gray-700">{game.description}</p>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold mb-2">System Requirements</h3>
+                  <p className="text-gray-700">{game.requirements}</p>
+                </div>
+
+                <div className="pt-4">
+                  <Button
+                    onClick={handleDownload}
+                    disabled={downloading || !currentUser || currentUser.role !== "PLAYER"}
+                    className="w-full sm:w-auto"
+                    size="lg"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    {downloading ? "Starting Download..." : "Download Game"}
+                    {game.supportPoints && currentUser?.role === "PLAYER" && " (+10 points)"}
+                  </Button>
+
+                  {!currentUser && (
+                    <p className="text-sm text-gray-500 mt-2">Please log in as a player to download games</p>
+                  )}
+
+                  {currentUser && currentUser.role !== "PLAYER" && (
+                    <p className="text-sm text-gray-500 mt-2">Only players can download games</p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Sidebar */}
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Game Info</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Developer ID:</span>
+                <span className="font-medium">{game.developerId}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Status:</span>
+                <Badge variant={game.status === "APPROVED" ? "default" : "secondary"}>{game.status}</Badge>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Points System:</span>
+                <span className={game.supportPoints ? "text-green-600" : "text-gray-400"}>
+                  {game.supportPoints ? "Enabled" : "Disabled"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Leaderboard:</span>
+                <span className={game.supportLeaderboard ? "text-green-600" : "text-gray-400"}>
+                  {game.supportLeaderboard ? "Enabled" : "Disabled"}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Points Info for Players */}
+          {currentUser?.role === "PLAYER" && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Trophy className="w-5 h-5" />
+                  Earn Points
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {game.supportPoints ? (
+                  <>
+                    <div className="flex justify-between">
+                      <span>Download Game:</span>
+                      <span className="font-medium text-green-600">+10 points</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Write Review:</span>
+                      <span className="font-medium text-green-600">+20 points</span>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-gray-500">This game doesn't support points</p>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
-    </motion.div>
-  );
+
+      {/* Reviews Section */}
+      <div className="mt-8">
+        <GameReviews gameId={gameId} />
+      </div>
+    </div>
+  )
 }

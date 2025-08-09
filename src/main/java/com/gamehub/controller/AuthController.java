@@ -54,6 +54,7 @@ public class AuthController {
             response.put("token", authResponse.getToken());
             response.put("role", authResponse.getRole());
             response.put("email", authResponse.getEmail());
+            response.put("id", authResponse.getId()); // Thêm id
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (RegistrationException e) {
             response.put("message", e.getMessage());
@@ -89,6 +90,7 @@ public class AuthController {
             response.put("token", authResponse.getToken());
             response.put("role", authResponse.getRole());
             response.put("email", authResponse.getEmail());
+            response.put("id", authResponse.getId()); // Thêm id
             return ResponseEntity.ok(response);
         } catch (AuthenticationException e) {
             response.put("message", e.getMessage());

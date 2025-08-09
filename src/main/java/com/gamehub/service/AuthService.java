@@ -101,7 +101,7 @@ public class AuthService {
             throw e;
         }
 
-        return new AuthResponse(token, user.getRole().name(), user.getEmail());
+        return new AuthResponse(token, user.getRole().name(), user.getEmail(), user.getId());
     }
 
     public AuthResponse login(LoginRequest loginRequest) throws AuthenticationException {
@@ -125,6 +125,6 @@ public class AuthService {
 
         String token = jwtUtil.generateToken(user.getEmail(), user.getRole().name());
         logger.info("Login successful for user: {}", user.getEmail());
-        return new AuthResponse(token, user.getRole().name(), user.getEmail());
+        return new AuthResponse(token, user.getRole().name(), user.getEmail(), user.getId());
     }
 }
