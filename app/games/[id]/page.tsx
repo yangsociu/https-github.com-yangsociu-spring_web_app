@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Download, Users, Trophy } from "lucide-react"
-import { getGameById, trackDownloadAndGetUrl, getCurrentUser } from "@/lib/api"
+import { getGameById, trackDownloadAndGetUrl, getCurrentUser, getDirectApkUrl } from "@/lib/api"
 import { GameReviews } from "@/components/game-reviews"
 import type { Game, User } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
@@ -19,12 +19,14 @@ export default function GameDetailPage() {
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
   const [currentUser, setCurrentUser] = useState<User | null>(null)
+  const [hasDownloadedBefore, setHasDownloadedBefore] = useState(false)
   const { toast } = useToast()
 
   useEffect(() => {
     if (gameId) {
       loadGame()
       loadCurrentUser()
+      checkDownloadHistory()
     }
   }, [gameId])
 
@@ -54,39 +56,68 @@ export default function GameDetailPage() {
     }
   }
 
+  const checkDownloadHistory = () => {
+    // Check localStorage for download history
+    const downloadHistory = localStorage.getItem(`download_${gameId}`)
+    if (downloadHistory) {
+      setHasDownloadedBefore(true)
+    }
+  }
+
   const handleDownload = async () => {
-    if (!currentUser) {
-      toast({
-        title: "Authentication Required",
-        description: "Please log in to download games",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (currentUser.role !== "PLAYER") {
-      toast({
-        title: "Access Denied",
-        description: "Only players can download games",
-        variant: "destructive",
-      })
-      return
-    }
-
     try {
       setDownloading(true)
 
-      // Track download and get APK URL
-      const apkUrl = await trackDownloadAndGetUrl(currentUser.id, gameId)
+      // For GUEST users or users who have downloaded before, just get direct APK URL
+      if (!currentUser || currentUser.role !== "PLAYER" || hasDownloadedBefore) {
+        const apkUrl = await getDirectApkUrl(gameId)
 
-      // Show success message
-      toast({
-        title: "Download Started",
-        description: game?.supportPoints ? "Download started! You earned 10 points!" : "Download started!",
-      })
+        toast({
+          title: "Download Started",
+          description: !currentUser
+            ? "Download started!"
+            : currentUser.role !== "PLAYER"
+              ? "Download started!"
+              : "Download started! (Points already earned previously)",
+        })
 
-      // Trigger download
-      window.open(apkUrl, "_blank")
+        // Open the APK URL in a new tab
+        window.open(apkUrl, "_blank")
+        return
+      }
+
+      // For PLAYER users downloading for the first time
+      try {
+        const apkUrl = await trackDownloadAndGetUrl(currentUser.id, gameId)
+
+        // Mark as downloaded in localStorage
+        localStorage.setItem(`download_${gameId}`, "true")
+        setHasDownloadedBefore(true)
+
+        toast({
+          title: "Download Started",
+          description: game?.supportPoints ? "Download started! You earned 10 points!" : "Download started!",
+        })
+
+        // Open the APK URL in a new tab
+        window.open(apkUrl, "_blank")
+      } catch (error: any) {
+        console.error("Download tracking failed:", error)
+
+        // If tracking fails, try direct download
+        try {
+          const apkUrl = await getDirectApkUrl(gameId)
+
+          toast({
+            title: "Download Started",
+            description: "Download started! (Point tracking unavailable)",
+          })
+
+          window.open(apkUrl, "_blank")
+        } catch (directError) {
+          throw new Error("Could not access game file")
+        }
+      }
     } catch (error: any) {
       console.error("Download failed:", error)
       toast({
@@ -113,6 +144,34 @@ export default function GameDetailPage() {
         <div className="text-center">Game not found</div>
       </div>
     )
+  }
+
+  const getDownloadButtonText = () => {
+    if (downloading) return "Starting Download..."
+
+    if (!currentUser) return "Download Game"
+
+    if (currentUser.role !== "PLAYER") return "Download Game"
+
+    if (hasDownloadedBefore) return "Download Game"
+
+    return game?.supportPoints ? "Download Game (+10 points)" : "Download Game"
+  }
+
+  const getDownloadHelpText = () => {
+    if (!currentUser) {
+      return "Anyone can download games"
+    }
+
+    if (currentUser.role !== "PLAYER") {
+      return "Download available (no points for non-players)"
+    }
+
+    if (hasDownloadedBefore) {
+      return "You have already earned points for this game"
+    }
+
+    return null
   }
 
   return (
@@ -165,24 +224,12 @@ export default function GameDetailPage() {
                 </div>
 
                 <div className="pt-4">
-                  <Button
-                    onClick={handleDownload}
-                    disabled={downloading || !currentUser || currentUser.role !== "PLAYER"}
-                    className="w-full sm:w-auto"
-                    size="lg"
-                  >
+                  <Button onClick={handleDownload} disabled={downloading} className="w-full sm:w-auto" size="lg">
                     <Download className="w-4 h-4 mr-2" />
-                    {downloading ? "Starting Download..." : "Download Game"}
-                    {game.supportPoints && currentUser?.role === "PLAYER" && " (+10 points)"}
+                    {getDownloadButtonText()}
                   </Button>
 
-                  {!currentUser && (
-                    <p className="text-sm text-gray-500 mt-2">Please log in as a player to download games</p>
-                  )}
-
-                  {currentUser && currentUser.role !== "PLAYER" && (
-                    <p className="text-sm text-gray-500 mt-2">Only players can download games</p>
-                  )}
+                  {getDownloadHelpText() && <p className="text-sm text-gray-500 mt-2">{getDownloadHelpText()}</p>}
                 </div>
               </div>
             </CardContent>
@@ -233,7 +280,9 @@ export default function GameDetailPage() {
                   <>
                     <div className="flex justify-between">
                       <span>Download Game:</span>
-                      <span className="font-medium text-green-600">+10 points</span>
+                      <span className={`font-medium ${hasDownloadedBefore ? "text-gray-400" : "text-green-600"}`}>
+                        {hasDownloadedBefore ? "Already earned" : "+10 points"}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span>Write Review:</span>

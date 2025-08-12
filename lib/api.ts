@@ -159,38 +159,54 @@ export const trackDownloadAndGetUrl = async (playerId: number, gameId: number): 
     throw new Error("Authentication required")
   }
 
-  const response = await fetch(`${API_BASE_URL}/points/track-download?playerId=${playerId}&gameId=${gameId}`, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-    redirect: "manual", // Don't follow redirects automatically
-  })
+  try {
+    const response = await fetch(`${API_BASE_URL}/points/track-download?playerId=${playerId}&gameId=${gameId}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      redirect: "manual", // Don't follow redirects automatically
+    })
 
-  if (response.status >= 300 && response.status < 400) {
-    // Handle redirect - extract the APK URL from Location header
-    const location = response.headers.get("Location")
-    if (location) {
-      return location
+    // Handle redirect response (3xx status codes)
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get("Location")
+      if (location) {
+        console.log("Redirect URL received:", location)
+        return location
+      }
     }
-  }
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ message: "Download tracking failed" }))
-    throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
-  }
+    // Handle error responses
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: "Download tracking failed" }))
+      throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
+    }
 
-  // If not a redirect, try to get URL from response body
-  const contentType = response.headers.get("content-type")
-  if (contentType?.includes("application/json")) {
-    const data = await response.json()
-    if (data.url) return data.url
-  } else {
-    const text = await response.text()
-    if (text.startsWith("http")) return text
-  }
+    // Handle successful response (shouldn't happen with redirect, but just in case)
+    const contentType = response.headers.get("content-type")
+    if (contentType?.includes("application/json")) {
+      const data = await response.json()
+      if (data.url) return data.url
+    } else {
+      const text = await response.text()
+      if (text.startsWith("http")) return text
+    }
 
-  throw new Error("Could not get download URL")
+    throw new Error("Could not get download URL from response")
+  } catch (error) {
+    console.error("Download tracking error:", error)
+    throw error
+  }
+}
+
+// Get direct APK URL without point tracking (for repeat downloads or non-players)
+export const getDirectApkUrl = async (gameId: number): Promise<string> => {
+  const game = await getGameById(gameId)
+  if (!game.apkFileUrl) {
+    throw new Error("APK file URL not available")
+  }
+  return game.apkFileUrl
 }
 
 // Leaderboard

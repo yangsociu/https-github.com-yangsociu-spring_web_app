@@ -43,10 +43,21 @@ public class PointController {
             throw new GameException("Unauthorized");
         }
 
-        pointService.awardPoints(playerId, gameId, "DOWNLOAD_GAME", 10L);
+        try {
+            // Thử cộng điểm, nếu đã cộng rồi thì bỏ qua
+            pointService.awardPoints(playerId, gameId, "DOWNLOAD_GAME", 10L);
+            logger.info("Points awarded successfully for download");
+        } catch (Exception e) {
+            logger.info("Points not awarded (may have been awarded before): {}", e.getMessage());
+            // Không throw exception, vẫn cho phép download
+        }
 
         String apkFileUrl = gameService.getGameById(gameId).getApkFileUrl();
         logger.info("Redirecting to APK URL: {}", apkFileUrl);
-        return new RedirectView(apkFileUrl);
+
+        // Tạo RedirectView với external URL
+        RedirectView redirectView = new RedirectView(apkFileUrl);
+        redirectView.setStatusCode(HttpStatus.FOUND); // 302 redirect
+        return redirectView;
     }
 }
