@@ -67,4 +67,17 @@ public class ApprovalController {
             return ResponseEntity.status(500).body(null);
         }
     }
+
+    //API xóa tài khoản
+    @DeleteMapping("/users/{id}")
+    public ResponseEntity<String> deleteUser(@PathVariable Long id) {
+        logger.info("Received delete request for user ID: {}", id);
+        try {
+            approvalService.deleteUser(id);
+            return ResponseEntity.ok("User deleted successfully");
+        } catch (Exception e) {
+            logger.error("Unexpected error during user deletion for ID: {}", id, e);
+            return ResponseEntity.status(500).body("Internal server error");
+        }
+    }
 }

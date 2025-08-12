@@ -2,18 +2,25 @@
 
 import type React from "react"
 
-import { useState } from "react"
-import { createGame } from "@/lib/api"
+import { useState, useEffect } from "react"
+import { updateGame } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
-import { Upload } from "lucide-react"
+import type { Game } from "@/lib/types"
 
-export function GameUploadForm({ onGameCreated }: { onGameCreated?: () => void }) {
+interface EditGameDialogProps {
+  game: Game
+  open: boolean
+  onClose: () => void
+  onGameUpdated: () => void
+}
+
+export function EditGameDialog({ game, open, onClose, onGameUpdated }: EditGameDialogProps) {
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -26,18 +33,23 @@ export function GameUploadForm({ onGameCreated }: { onGameCreated?: () => void }
   const [loading, setLoading] = useState(false)
   const { toast } = useToast()
 
+  useEffect(() => {
+    if (game) {
+      setFormData({
+        name: game.name,
+        description: game.description,
+        requirements: game.requirements,
+        apkFileUrl: game.apkFileUrl,
+        supportLeaderboard: game.supportLeaderboard,
+        supportPoints: game.supportPoints,
+      })
+    }
+  }, [game])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!previewImage) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Please select a preview image.",
-      })
-      return
-    }
-
     setLoading(true)
+
     try {
       const data = new FormData()
       data.append("name", formData.name)
@@ -46,34 +58,24 @@ export function GameUploadForm({ onGameCreated }: { onGameCreated?: () => void }
       data.append("apkFileUrl", formData.apkFileUrl)
       data.append("supportLeaderboard", formData.supportLeaderboard.toString())
       data.append("supportPoints", formData.supportPoints.toString())
-      data.append("previewImage", previewImage)
 
-      await createGame(data)
+      if (previewImage) {
+        data.append("previewImage", previewImage)
+      }
+
+      await updateGame(game.id, data)
 
       toast({
         title: "Success",
-        description: "Game uploaded successfully! Waiting for admin approval.",
+        description: "Game updated successfully!",
       })
 
-      // Reset form
-      setFormData({
-        name: "",
-        description: "",
-        requirements: "",
-        apkFileUrl: "",
-        supportLeaderboard: false,
-        supportPoints: false,
-      })
-      setPreviewImage(null)
-
-      if (onGameCreated) {
-        onGameCreated()
-      }
+      onGameUpdated()
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message || "Failed to upload game.",
+        description: error.message || "Failed to update game.",
       })
     } finally {
       setLoading(false)
@@ -81,19 +83,17 @@ export function GameUploadForm({ onGameCreated }: { onGameCreated?: () => void }
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Upload className="w-5 h-5" />
-          Upload New Game
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Edit Game</DialogTitle>
+        </DialogHeader>
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <Label htmlFor="name">Game Name *</Label>
+            <Label htmlFor="edit-name">Game Name *</Label>
             <Input
-              id="name"
+              id="edit-name"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               required
@@ -101,9 +101,9 @@ export function GameUploadForm({ onGameCreated }: { onGameCreated?: () => void }
           </div>
 
           <div>
-            <Label htmlFor="description">Description</Label>
+            <Label htmlFor="edit-description">Description</Label>
             <Textarea
-              id="description"
+              id="edit-description"
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               rows={3}
@@ -111,9 +111,9 @@ export function GameUploadForm({ onGameCreated }: { onGameCreated?: () => void }
           </div>
 
           <div>
-            <Label htmlFor="requirements">System Requirements</Label>
+            <Label htmlFor="edit-requirements">System Requirements</Label>
             <Textarea
-              id="requirements"
+              id="edit-requirements"
               value={formData.requirements}
               onChange={(e) => setFormData({ ...formData, requirements: e.target.value })}
               rows={2}
@@ -121,20 +121,19 @@ export function GameUploadForm({ onGameCreated }: { onGameCreated?: () => void }
           </div>
 
           <div>
-            <Label htmlFor="previewImage">Preview Image *</Label>
+            <Label htmlFor="edit-previewImage">Preview Image (leave empty to keep current)</Label>
             <Input
-              id="previewImage"
+              id="edit-previewImage"
               type="file"
               accept="image/*"
               onChange={(e) => setPreviewImage(e.target.files?.[0] || null)}
-              required
             />
           </div>
 
           <div>
-            <Label htmlFor="apkFileUrl">APK Download URL *</Label>
+            <Label htmlFor="edit-apkFileUrl">APK Download URL *</Label>
             <Input
-              id="apkFileUrl"
+              id="edit-apkFileUrl"
               type="url"
               value={formData.apkFileUrl}
               onChange={(e) => setFormData({ ...formData, apkFileUrl: e.target.value })}
@@ -146,28 +145,33 @@ export function GameUploadForm({ onGameCreated }: { onGameCreated?: () => void }
           <div className="space-y-2">
             <div className="flex items-center space-x-2">
               <Checkbox
-                id="supportLeaderboard"
+                id="edit-supportLeaderboard"
                 checked={formData.supportLeaderboard}
                 onCheckedChange={(checked) => setFormData({ ...formData, supportLeaderboard: checked as boolean })}
               />
-              <Label htmlFor="supportLeaderboard">Support Leaderboard</Label>
+              <Label htmlFor="edit-supportLeaderboard">Support Leaderboard</Label>
             </div>
 
             <div className="flex items-center space-x-2">
               <Checkbox
-                id="supportPoints"
+                id="edit-supportPoints"
                 checked={formData.supportPoints}
                 onCheckedChange={(checked) => setFormData({ ...formData, supportPoints: checked as boolean })}
               />
-              <Label htmlFor="supportPoints">Support Points System</Label>
+              <Label htmlFor="edit-supportPoints">Support Points System</Label>
             </div>
           </div>
 
-          <Button type="submit" disabled={loading} className="w-full">
-            {loading ? "Uploading..." : "Upload Game"}
-          </Button>
+          <div className="flex gap-2 pt-4">
+            <Button type="submit" disabled={loading} className="flex-1">
+              {loading ? "Updating..." : "Update Game"}
+            </Button>
+            <Button type="button" variant="outline" onClick={onClose} className="flex-1 bg-transparent">
+              Cancel
+            </Button>
+          </div>
         </form>
-      </CardContent>
-    </Card>
+      </DialogContent>
+    </Dialog>
   )
 }

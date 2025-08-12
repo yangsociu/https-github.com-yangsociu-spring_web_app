@@ -102,6 +102,109 @@ public class GameService {
         );
     }
 
+    // THÊM MỚI: Phương thức updateGame để cập nhật thông tin game
+    public GameResponse updateGame(Long gameId, GameRequest gameRequest, String userEmail) throws GameException {
+        logger.info("Game update attempt for ID: {} by user: {}", gameId, userEmail);
+
+        User developer = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> {
+                    logger.warn("User not found: {}", userEmail);
+                    return new GameException("User not found");
+                });
+
+        if (developer.getRole() != UserRole.DEVELOPER) {
+            logger.warn("Game update failed - user is not a DEVELOPER: {}", userEmail);
+            throw new GameException("Only DEVELOPER accounts can update games");
+        }
+
+        Game game = gameRepository.findById(gameId)
+                .orElseThrow(() -> {
+                    logger.warn("Game not found: {}", gameId);
+                    return new GameException("Game not found");
+                });
+
+        if (!game.getDeveloper().getId().equals(developer.getId())) {
+            logger.warn("Game update failed - user is not the owner: {}", userEmail);
+            throw new GameException("You can only update your own games");
+        }
+
+        // Update game fields
+        game.setName(gameRequest.getName());
+        game.setDescription(gameRequest.getDescription());
+        game.setRequirements(gameRequest.getRequirements());
+        game.setApkFileUrl(gameRequest.getApkFileUrl());
+        game.setSupportLeaderboard(gameRequest.isSupportLeaderboard());
+        game.setSupportPoints(gameRequest.isSupportPoints());
+
+        // Update preview image if provided
+        if (gameRequest.getPreviewImage() != null && !gameRequest.getPreviewImage().isEmpty()) {
+            String previewImageUrl = cloudinaryService.uploadFile(gameRequest.getPreviewImage());
+            game.setPreviewImageUrl(previewImageUrl);
+        }
+
+        // Reset status to PENDING for re-approval
+        game.setStatus(GameStatus.PENDING);
+
+        try {
+            gameRepository.save(game);
+            logger.info("Game updated successfully: ID={}, Name={}", game.getId(), game.getName());
+        } catch (Exception e) {
+            logger.error("Error updating game: {}", game.getName(), e);
+            throw new GameException("Error updating game");
+        }
+
+        String apiKeyMessage = generateApiKeyMessage(game);
+
+        return new GameResponse(
+                game.getId(),
+                game.getName(),
+                game.getDescription(),
+                game.getRequirements(),
+                game.getPreviewImageUrl(),
+                game.getApkFileUrl(),
+                game.isSupportLeaderboard(),
+                game.isSupportPoints(),
+                game.getStatus(),
+                game.getDeveloper().getId(),
+                apiKeyMessage
+        );
+    }
+
+    //hàm xóa game
+    public void deleteGame(Long gameId, String userEmail) throws GameException {
+        logger.info("Game deletion attempt for ID: {} by user: {}", gameId, userEmail);
+
+        User developer = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> {
+                    logger.warn("User not found: {}", userEmail);
+                    return new GameException("User not found");
+                });
+
+        if (developer.getRole() != UserRole.DEVELOPER) {
+            logger.warn("Game deletion failed - user is not a DEVELOPER: {}", userEmail);
+            throw new GameException("Only DEVELOPER accounts can delete games");
+        }
+
+        Game game = gameRepository.findById(gameId)
+                .orElseThrow(() -> {
+                    logger.warn("Game not found: {}", gameId);
+                    return new GameException("Game not found");
+                });
+
+        if (!game.getDeveloper().getId().equals(developer.getId())) {
+            logger.warn("Game deletion failed - user is not the owner: {}", userEmail);
+            throw new GameException("You can only delete your own games");
+        }
+
+        try {
+            gameRepository.delete(game);
+            logger.info("Game deleted successfully: ID={}, Name={}", game.getId(), game.getName());
+        } catch (Exception e) {
+            logger.error("Error deleting game: {}", game.getName(), e);
+            throw new GameException("Error deleting game");
+        }
+    }
+
     public List<GameResponse> getGamesByDeveloper(String userEmail) throws GameException {
         logger.info("Fetching games for developer: {}", userEmail);
 

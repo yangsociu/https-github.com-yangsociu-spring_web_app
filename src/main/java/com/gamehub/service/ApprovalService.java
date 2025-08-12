@@ -59,4 +59,23 @@ public class ApprovalService {
             throw e;
         }
     }
+
+    //hàm xóa tài khoản (ADMIN)
+    public void deleteUser(Long userId) throws ApprovalException {
+        logger.info("Delete attempt for user ID: {}", userId);
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> {
+                    logger.warn("Delete failed - user not found: {}", userId);
+                    return new ApprovalException("User not found");
+                });
+
+        try {
+            userRepository.delete(user);
+            logger.info("User deleted successfully: ID={}, Email={}", user.getId(), user.getEmail());
+        } catch (Exception e) {
+            logger.error("Error deleting user: {}", user.getId(), e);
+            throw new ApprovalException("Error deleting user");
+        }
+    }
 }

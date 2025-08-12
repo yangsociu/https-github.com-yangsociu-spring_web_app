@@ -32,7 +32,7 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      const data = await login(email, password);
+      const data = await login({ email, password });
       toast({
         title: "Login Successful",
         description: `Welcome back! Redirecting you to your dashboard...`,

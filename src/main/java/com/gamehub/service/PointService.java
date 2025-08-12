@@ -62,7 +62,7 @@ public class PointService {
             throw new GameException("Invalid action type");
         }
 
-        // Kiểm tra để tránh cộng điểm trùng lặp
+        // Kiểm tra để tránh cộng điểm trùng lặp (Cơ chế tích điểm 1 lần check ID đã có action tíchdideeiem -> ném ra ngoại lệ)
         if (gameId != null && pointTransactionRepository.existsByPlayerIdAndGameIdAndActionType(playerId, gameId, pointActionType)) {
             logger.warn("Points already awarded for player {} and game {} for action {}", playerId, gameId, actionType);
             throw new GameException("Points already awarded for this action");

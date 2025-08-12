@@ -34,6 +34,25 @@ public class GameController {
         return ResponseEntity.ok(response);
     }
 
+    //Phương thức update games
+    @PutMapping("/{id}")
+    public ResponseEntity<GameResponse> updateGame(@PathVariable Long id,
+                                                   @Valid @ModelAttribute GameRequest gameRequest,
+                                                   Authentication authentication) throws GameException {
+        logger.info("Game update request for ID: {} by user: {}", id, authentication.getName());
+        GameResponse response = gameService.updateGame(id, gameRequest, authentication.getName());
+        return ResponseEntity.ok(response);
+    }
+
+    //Phương thức delete games
+    @DeleteMapping("/{id}")
+    public ResponseEntity<String> deleteGame(@PathVariable Long id,
+                                             Authentication authentication) throws GameException {
+        logger.info("Game deletion request for ID: {} by user: {}", id, authentication.getName());
+        gameService.deleteGame(id, authentication.getName());
+        return ResponseEntity.ok("Game deleted successfully");
+    }
+
     @GetMapping("/my-games")
     public ResponseEntity<List<GameResponse>> getMyGames(Authentication authentication) throws GameException {
         logger.info("Fetching games for user: {}", authentication.getName());

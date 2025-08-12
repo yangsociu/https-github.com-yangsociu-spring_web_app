@@ -3,14 +3,14 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { getGameReviews, submitReview, getCurrentUser } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
-import { Star, User } from "lucide-react"
-import { getGameReviews, submitReview, getCurrentUser } from "@/lib/api"
-import type { Review, User as UserType } from "@/lib/types"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Star, StarIcon } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import type { Review, User } from "@/lib/types"
 
 interface GameReviewsProps {
   gameId: number
@@ -20,10 +20,11 @@ export function GameReviews({ gameId }: GameReviewsProps) {
   const [reviews, setReviews] = useState<Review[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
-  const [rating, setRating] = useState(0)
-  const [comment, setComment] = useState("")
-  const [currentUser, setCurrentUser] = useState<UserType | null>(null)
-  const [hasReviewed, setHasReviewed] = useState(false)
+  const [currentUser, setCurrentUser] = useState<User | null>(null)
+  const [newReview, setNewReview] = useState({
+    rating: 5,
+    comment: "",
+  })
   const { toast } = useToast()
 
   useEffect(() => {
@@ -43,22 +44,10 @@ export function GameReviews({ gameId }: GameReviewsProps) {
   const loadReviews = async () => {
     try {
       setLoading(true)
-      const reviewsData = await getGameReviews(gameId)
-      setReviews(reviewsData)
-
-      // Check if current user has already reviewed
-      const user = await getCurrentUser()
-      if (user) {
-        const userReview = reviewsData.find((review) => review.playerId === user.id)
-        setHasReviewed(!!userReview)
-      }
+      const gameReviews = await getGameReviews(gameId)
+      setReviews(gameReviews)
     } catch (error) {
       console.error("Failed to load reviews:", error)
-      toast({
-        title: "Error",
-        description: "Failed to load reviews",
-        variant: "destructive",
-      })
     } finally {
       setLoading(false)
     }
@@ -67,55 +56,34 @@ export function GameReviews({ gameId }: GameReviewsProps) {
   const handleSubmitReview = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!currentUser) {
+    if (!currentUser || currentUser.role !== "PLAYER") {
       toast({
-        title: "Authentication Required",
-        description: "Please log in to submit a review",
+        title: "Error",
+        description: "Only players can submit reviews.",
         variant: "destructive",
       })
       return
     }
 
-    if (currentUser.role !== "PLAYER") {
-      toast({
-        title: "Access Denied",
-        description: "Only players can submit reviews",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (rating === 0) {
-      toast({
-        title: "Rating Required",
-        description: "Please select a rating",
-        variant: "destructive",
-      })
-      return
-    }
-
+    setSubmitting(true)
     try {
-      setSubmitting(true)
       await submitReview({
         gameId,
-        rating,
-        comment,
+        rating: newReview.rating,
+        comment: newReview.comment,
       })
 
       toast({
-        title: "Review Submitted",
-        description: "Your review has been submitted successfully! You earned 20 points!",
+        title: "Success",
+        description: "Review submitted successfully! It will be visible after approval.",
       })
 
-      // Reset form and reload reviews
-      setRating(0)
-      setComment("")
-      setHasReviewed(true)
-      loadReviews()
+      setNewReview({ rating: 5, comment: "" })
+      loadReviews() // Refresh reviews
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to submit review",
+        description: error.message || "Failed to submit review.",
         variant: "destructive",
       })
     } finally {
@@ -123,17 +91,23 @@ export function GameReviews({ gameId }: GameReviewsProps) {
     }
   }
 
-  const renderStars = (currentRating: number, interactive = false) => {
+  const renderStars = (rating: number, interactive = false, onRatingChange?: (rating: number) => void) => {
     return (
       <div className="flex gap-1">
         {[1, 2, 3, 4, 5].map((star) => (
-          <Star
+          <button
             key={star}
-            className={`w-5 h-5 ${
-              star <= currentRating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"
-            } ${interactive ? "cursor-pointer hover:text-yellow-400" : ""}`}
-            onClick={interactive ? () => setRating(star) : undefined}
-          />
+            type={interactive ? "button" : undefined}
+            onClick={interactive && onRatingChange ? () => onRatingChange(star) : undefined}
+            className={interactive ? "cursor-pointer hover:scale-110 transition-transform" : "cursor-default"}
+            disabled={!interactive}
+          >
+            {star <= rating ? (
+              <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
+            ) : (
+              <StarIcon className="w-5 h-5 text-gray-300" />
+            )}
+          </button>
         ))}
       </div>
     )
@@ -159,61 +133,62 @@ export function GameReviews({ gameId }: GameReviewsProps) {
           <CardTitle>Reviews ({reviews.length})</CardTitle>
         </CardHeader>
         <CardContent>
-          {/* Review Form */}
-          {currentUser && currentUser.role === "PLAYER" && !hasReviewed && (
-            <form onSubmit={handleSubmitReview} className="space-y-4 mb-6 p-4 border rounded-lg bg-gray-50">
-              <h3 className="font-semibold">Write a Review</h3>
+          {currentUser?.role === "PLAYER" && (
+            <form onSubmit={handleSubmitReview} className="mb-6 p-4 border rounded-lg bg-gray-50">
+              <h4 className="font-semibold mb-3">Write a Review</h4>
 
-              <div>
-                <Label htmlFor="rating">Rating</Label>
-                <div className="mt-1">{renderStars(rating, true)}</div>
+              <div className="mb-3">
+                <label className="block text-sm font-medium mb-2">Rating</label>
+                {renderStars(newReview.rating, true, (rating) => setNewReview({ ...newReview, rating }))}
               </div>
 
-              <div>
-                <Label htmlFor="comment">Comment</Label>
+              <div className="mb-3">
+                <label className="block text-sm font-medium mb-2">Comment</label>
                 <Textarea
-                  id="comment"
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
+                  value={newReview.comment}
+                  onChange={(e) => setNewReview({ ...newReview, comment: e.target.value })}
                   placeholder="Share your thoughts about this game..."
-                  className="mt-1"
-                  maxLength={1000}
+                  rows={3}
+                  required
                 />
-                <div className="text-sm text-gray-500 mt-1">{comment.length}/1000 characters</div>
               </div>
 
-              <Button type="submit" disabled={submitting || rating === 0}>
-                {submitting ? "Submitting..." : "Submit Review (+20 points)"}
+              <Button type="submit" disabled={submitting}>
+                {submitting ? "Submitting..." : "Submit Review"}
               </Button>
             </form>
           )}
 
-          {hasReviewed && currentUser?.role === "PLAYER" && (
-            <div className="mb-6 p-4 border rounded-lg bg-green-50">
-              <p className="text-green-700">You have already reviewed this game.</p>
-            </div>
-          )}
-
-          {/* Reviews List */}
           <div className="space-y-4">
-            {reviews.length === 0 ? (
-              <p className="text-gray-500 text-center py-4">No reviews yet. Be the first to review!</p>
-            ) : (
+            {reviews.length > 0 ? (
               reviews.map((review) => (
                 <div key={review.id} className="border rounded-lg p-4">
                   <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <User className="w-5 h-5 text-gray-400" />
-                      <span className="font-medium">{review.playerName}</span>
+                    <div>
+                      <div className="font-medium">{review.playerName}</div>
+                      <div className="flex items-center gap-2 mt-1">
+                        {renderStars(review.rating)}
+                        <Badge
+                          variant={
+                            review.status === "APPROVED"
+                              ? "default"
+                              : review.status === "PENDING"
+                                ? "secondary"
+                                : "destructive"
+                          }
+                          className="text-xs"
+                        >
+                          {review.status}
+                        </Badge>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {renderStars(review.rating)}
-                      <span className="text-sm text-gray-500">{new Date(review.createdAt).toLocaleDateString()}</span>
-                    </div>
+                    <div className="text-sm text-gray-500">{new Date(review.createdAt).toLocaleDateString()}</div>
                   </div>
-                  {review.comment && <p className="text-gray-700 mt-2">{review.comment}</p>}
+                  <p className="text-gray-700">{review.comment}</p>
                 </div>
               ))
+            ) : (
+              <div className="text-center py-8 text-gray-500">No reviews yet. Be the first to review this game!</div>
             )}
           </div>
         </CardContent>

@@ -1,74 +1,91 @@
-import Link from "next/link";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import type { Game } from "@/lib/types";
-import Image from "next/image";
-import { motion } from "framer-motion";
-import { cn } from "@/lib/utils";
+"use client"
+
+import Image from "next/image"
+import Link from "next/link"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Edit, Trash2, Eye } from "lucide-react"
+import type { Game } from "@/lib/types"
 
 interface GameCardProps {
-  game: Game;
-  showStatus?: boolean;
+  game: Game
+  showStatus?: boolean
+  showActions?: boolean
+  onEdit?: () => void
+  onDelete?: () => void
 }
 
-export function GameCard({ game, showStatus = false }: GameCardProps) {
-  const getStatusClasses = (status: Game["status"]) => {
+export function GameCard({ game, showStatus = false, showActions = false, onEdit, onDelete }: GameCardProps) {
+  const getStatusVariant = (status: string) => {
     switch (status) {
       case "APPROVED":
-        return "bg-green-100 text-green-700 border-green-200";
+        return "default"
       case "PENDING":
-        return "bg-yellow-100 text-yellow-700 border-yellow-200";
+        return "secondary"
       case "REJECTED":
-        return "bg-red-100 text-red-700 border-red-200";
+        return "destructive"
       default:
-        return "bg-gray-100 text-gray-700 border-gray-200";
+        return "outline"
     }
-  };
-
-  const imageUrl = game.previewImageUrl || "/stylized-game-scene.png";
+  }
 
   return (
-    <motion.div
-      whileHover={{ y: -8, scale: 1.03 }}
-      transition={{ duration: 0.3 }}
-      className="h-full"
-    >
-      <Link href={`/games/${game.id}`} className="block h-full">
-        <Card className="flex flex-col h-full bg-white border border-gray-200 hover:border-blue-400 transition-all duration-300 overflow-hidden rounded-xl shadow-md hover:shadow-xl">
-          <div className="relative aspect-video w-full">
-            <Image
-              src={imageUrl}
-              alt={`Preview for ${game.name}`}
-              fill
-              className="object-cover rounded-t-xl"
-            />
+    <Card className="overflow-hidden hover:shadow-lg transition-shadow">
+      <div className="relative aspect-video">
+        <Image src={game.previewImageUrl || "/stylized-game-scene.png"} alt={game.name} fill className="object-cover" />
+        {showStatus && (
+          <div className="absolute top-2 right-2">
+            <Badge variant={getStatusVariant(game.status)}>{game.status}</Badge>
           </div>
-          <CardContent className="p-4 flex-1">
-            <h3 className="font-bold text-lg text-gray-800">{game.name}</h3>
-            <p className="mt-1 text-sm text-gray-600 line-clamp-2">
-              {game.description}
-            </p>
-          </CardContent>
-          <CardFooter className="p-4 pt-0">
-            {showStatus ? (
-              <div className="w-full">
-                <Badge className={cn("w-full justify-center font-semibold", getStatusClasses(game.status))}>
-                  {game.status}
-                </Badge>
-              
-              </div>
-            ) : (
-              <div className="text-sm text-blue-600 font-semibold hover:text-blue-800 transition-colors">
-                View Details &rarr;
-              </div>
-            )}
-          </CardFooter>
-        </Card>
-      </Link>
-    </motion.div>
-  );
+        )}
+      </div>
+
+      <CardHeader className="pb-2">
+        <CardTitle className="text-lg line-clamp-1">{game.name}</CardTitle>
+      </CardHeader>
+
+      <CardContent className="pt-0">
+        <p className="text-sm text-gray-600 line-clamp-2 mb-4">{game.description || "No description available"}</p>
+
+        <div className="flex flex-wrap gap-1 mb-4">
+          {game.supportPoints && (
+            <Badge variant="outline" className="text-xs">
+              Points
+            </Badge>
+          )}
+          {game.supportLeaderboard && (
+            <Badge variant="outline" className="text-xs">
+              Leaderboard
+            </Badge>
+          )}
+        </div>
+
+        <div className="flex gap-2">
+          <Button asChild variant="outline" size="sm" className="flex-1 bg-transparent">
+            <Link href={`/games/${game.id}`}>
+              <Eye className="w-4 h-4 mr-1" />
+              View
+            </Link>
+          </Button>
+
+          {showActions && (
+            <>
+              <Button variant="outline" size="sm" onClick={onEdit} className="px-2 bg-transparent">
+                <Edit className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onDelete}
+                className="px-2 text-red-600 hover:text-red-700 bg-transparent"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
 }

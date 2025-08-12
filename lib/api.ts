@@ -120,6 +120,13 @@ export const getAdminAllGames = (): Promise<Game[]> => {
   return fetchWrapper(`${API_BASE_URL}/admin/games/all`)
 }
 
+//CẬP NHẬT DELETE USER
+export const deleteUser = (userId: number): Promise<string> => {
+  return fetchWrapper(`${API_BASE_URL}/admin/users/${userId}`, {
+    method: "DELETE",
+  })
+}
+
 // Games
 export const getPublicGames = (): Promise<Game[]> => {
   return fetchWrapper(`${API_BASE_URL}/games/public`)
@@ -133,6 +140,21 @@ export const createGame = (data: FormData): Promise<Game> => {
   return fetchWrapper(`${API_BASE_URL}/games/create`, {
     method: "POST",
     body: data,
+  })
+}
+
+// Update game details
+export const updateGame = (gameId: number, data: FormData): Promise<Game> => {
+  return fetchWrapper(`${API_BASE_URL}/games/${gameId}`, {
+    method: "PUT",
+    body: data,
+  })
+}
+
+// Delete game
+export const deleteGame = (gameId: number): Promise<string> => {
+  return fetchWrapper(`${API_BASE_URL}/games/${gameId}`, {
+    method: "DELETE",
   })
 }
 
