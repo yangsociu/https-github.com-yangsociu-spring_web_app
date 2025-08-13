@@ -56,3 +56,26 @@ CREATE TABLE IF NOT EXISTS point_transactions (
     FOREIGN KEY (game_id) REFERENCES games(id)
 );
 
+// Bảng gifts lưu thông tin quà tặng do Developer upload.
+CREATE TABLE IF NOT EXISTS gifts (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    image_url VARCHAR(255),
+    point_cost BIGINT NOT NULL CHECK (point_cost > 0),
+    quantity BIGINT NOT NULL CHECK (quantity >= 0), // Thêm trường quantity để giữ số lượng quà
+    developer_id BIGINT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (developer_id) REFERENCES users(id)
+);
+
+// Bảng gift_transactions để lưu lịch sử đổi quà của người chơi.
+CREATE TABLE IF NOT EXISTS gift_transactions (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    player_id BIGINT NOT NULL,
+    gift_id BIGINT NOT NULL,
+    points_spent BIGINT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (player_id) REFERENCES users(id),
+    FOREIGN KEY (gift_id) REFERENCES gifts(id)
+);

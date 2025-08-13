@@ -70,12 +70,14 @@ public class SecurityConfig {
                         // Cho phép tất cả truy cập các endpoint công khai
                         .requestMatchers("/api/v1/auth/register", "/api/v1/auth/login").permitAll()
                         .requestMatchers("/api/v1/games/public", "/api/v1/games/{id}", "/api/v1/reviews/{gameId}", "/api/v1/leaderboard").permitAll()
+                        // Cho phép tất cả truy cập danh sách quà tặng
+                        .requestMatchers("/api/v1/gifts").permitAll()
                         // Endpoint cho ADMIN
                         .requestMatchers("/api/v1/admin/**").hasAuthority("ADMIN")
                         // Endpoint cho DEVELOPER
-                        .requestMatchers("/api/v1/games/**").hasAuthority("DEVELOPER")
+                        .requestMatchers("/api/v1/games/**", "/api/v1/gifts/upload").hasAuthority("DEVELOPER")
                         // Endpoint cho PLAYER
-                        .requestMatchers("/api/v1/games/**", "/api/v1/reviews", "/api/v1/points/**").hasAuthority("PLAYER")
+                        .requestMatchers("/api/v1/games/**", "/api/v1/reviews", "/api/v1/points/**", "/api/v1/gifts/redeem", "/api/v1/gifts/transactions").hasAuthority("PLAYER")
                         // Tất cả các request khác yêu cầu xác thực
                         .anyRequest().authenticated()
                 )
