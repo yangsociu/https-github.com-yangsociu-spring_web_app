@@ -9,6 +9,7 @@ import type {
   Review,
   ReviewRequest,
   LeaderboardEntry,
+  PointTransaction,
 } from "./types"
 
 const API_BASE_URL = "http://localhost:8080/api/v1"
@@ -236,5 +237,36 @@ export const getLeaderboard = (): Promise<LeaderboardEntry[]> => {
   return fetchWrapper(`${API_BASE_URL}/leaderboard`)
 }
 
+export const getPlayerPoints = async (): Promise<number> => {
+  try {
+    const currentUser = await getCurrentUser()
+    if (!currentUser?.id) {
+      return 0
+    }
+
+    const leaderboard = await getLeaderboard()
+    const playerEntry = leaderboard.find((entry) => entry.playerId === currentUser.id)
+
+    return playerEntry?.totalPoints || 0
+  } catch (error) {
+    console.error("Failed to get player points:", error)
+    return 0
+  }
+}
+
 // Helper function to get current user
 export { getCurrentUser }
+
+export const getPlayerTransactions = async (): Promise<PointTransaction[]> => {
+  try {
+    const currentUser = await getCurrentUser()
+    if (!currentUser?.id) {
+      return []
+    }
+
+    return fetchWrapper(`${API_BASE_URL}/points/transactions/${currentUser.id}`)
+  } catch (error) {
+    console.error("Failed to get player transactions:", error)
+    return []
+  }
+}

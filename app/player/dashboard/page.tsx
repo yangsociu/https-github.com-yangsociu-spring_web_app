@@ -2,27 +2,69 @@
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Trophy, Star, Download, TrendingUp } from "lucide-react"
+import { Trophy, Star, Download, TrendingUp, Calendar } from "lucide-react"
 import { Leaderboard } from "@/components/leaderboard"
-import { getCurrentUser } from "@/lib/api"
-import type { User } from "@/lib/types"
+import { getCurrentUser, getPlayerPoints, getPlayerTransactions } from "@/lib/api"
+import type { User, PointTransaction } from "@/lib/types"
 
 export default function PlayerDashboardPage() {
   const [currentUser, setCurrentUser] = useState<User | null>(null)
+  const [playerPoints, setPlayerPoints] = useState<number>(0)
+  const [transactions, setTransactions] = useState<PointTransaction[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    loadCurrentUser()
+    loadDashboardData()
   }, [])
 
-  const loadCurrentUser = async () => {
+  const loadDashboardData = async () => {
     try {
-      const user = await getCurrentUser()
+      const [user, points, transactionHistory] = await Promise.all([
+        getCurrentUser(),
+        getPlayerPoints(),
+        getPlayerTransactions(), // Thêm việc lấy lịch sử giao dịch
+      ])
+
       setCurrentUser(user)
+      setPlayerPoints(points)
+      setTransactions(transactionHistory)
     } catch (error) {
-      console.error("Failed to load current user:", error)
+      console.error("Failed to load dashboard data:", error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
+    return date.toLocaleDateString("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+  }
+
+  const getActionIcon = (actionType: string) => {
+    switch (actionType) {
+      case "DOWNLOAD_GAME":
+        return <Download className="w-4 h-4 text-blue-500" />
+      case "WRITE_REVIEW":
+        return <Star className="w-4 h-4 text-yellow-500" />
+      default:
+        return <TrendingUp className="w-4 h-4 text-gray-500" />
+    }
+  }
+
+  const formatActionType = (actionType: string) => {
+    switch (actionType) {
+      case "DOWNLOAD_GAME":
+        return "Downloaded Game"
+      case "WRITE_REVIEW":
+        return "Wrote Review"
+      default:
+        return actionType
     }
   }
 
@@ -55,7 +97,7 @@ export default function PlayerDashboardPage() {
             <Trophy className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{currentUser?.totalPoints || 0}</div>
+            <div className="text-2xl font-bold text-blue-600">{playerPoints}</div>
             <p className="text-xs text-muted-foreground">Earn points by downloading games and writing reviews</p>
           </CardContent>
         </Card>
@@ -86,8 +128,8 @@ export default function PlayerDashboardPage() {
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Quick Actions</CardTitle>
+          <CardHeader>
+            <CardTitle>Quick Actions</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
@@ -110,14 +152,36 @@ export default function PlayerDashboardPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="w-5 h-5" />
+              Recent Activity
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-center py-8 text-gray-500">
-              <TrendingUp className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-              <p>Your recent activity will appear here</p>
-              <p className="text-sm mt-2">Download games and write reviews to see your activity</p>
-            </div>
+            {transactions.length > 0 ? (
+              <div className="space-y-3">
+                {transactions.map((transaction) => (
+                  <div key={transaction.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      {getActionIcon(transaction.actionType)}
+                      <div>
+                        <p className="font-medium text-sm">{formatActionType(transaction.actionType)}</p>
+                        <p className="text-xs text-gray-500">{formatDate(transaction.createdAt)}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-green-600">+{transaction.points} pts</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <TrendingUp className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                <p>Your recent activity will appear here</p>
+                <p className="text-sm mt-2">Download games and write reviews to see your activity</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
